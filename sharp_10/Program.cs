@@ -13,6 +13,7 @@ namespace lab10New
     {
         static async Task Main(string[] args)
         {
+            CreateDb();
             ChekerCondition();
         }
 
@@ -69,7 +70,7 @@ namespace lab10New
         }
         static void ChekerCondition()
         {
-            Console.WriteLine("input ticker");
+            Console.WriteLine("Ticker");
             string tickerName = Console.ReadLine();
             while (tickerName != "exit")
             {
@@ -83,6 +84,7 @@ namespace lab10New
                                      select con).ToList();
                     foreach (var us in users)
                         Console.WriteLine($"{us.Price1}");
+
                     if (users[1].Price1 - users[0].Price1 > 0)
                     {
                         Console.WriteLine($"The price has risen");
@@ -91,21 +93,19 @@ namespace lab10New
                     {
                         Console.WriteLine($"The price has decreased");
                     }
-                    else
+                    if (users[1].Price1 - users[0].Price1 == 0)
                     {
                         Console.WriteLine($"The price has not changed");
                     }
-
-
                 }
-                Console.WriteLine("\ninput ticker or exit");
+                Console.WriteLine("\nTicker or exit");
                 tickerName = Console.ReadLine();
             }
         }
 
         static async void CreateDb()
         {
-            string path = "ticker.txt";
+            string path = @"ticker.txt";
             int IdTicker = 1;
             int IdPrice = 1;
             using (DataBase db = new DataBase())
@@ -117,14 +117,13 @@ namespace lab10New
                     while (true)
                     {
                         string line = reader.ReadLine();
-                        Console.WriteLine(line);
                         if (line == null)
                         {
                             break;
                         }
                         var client = new HttpClient();
-                        var dateNow = (int)(DateTime.Now - new System.DateTime(1970, 1, 1, 0, 0, 0, 0)).TotalSeconds - 86400;
-                        var lastDay = dateNow - 86400;
+                        var dateNow = DateTimeOffset.Now.ToUnixTimeSeconds();
+                        var lastDay = dateNow - 2 * 86400;
                         try
                         {
                             var content = await client.GetStringAsync($"https://query1.finance.yahoo.com/v7/finance/download/{line}?period1={lastDay}&period2={dateNow}&interval=1d&events=history&includeAdjustedClose=true");
