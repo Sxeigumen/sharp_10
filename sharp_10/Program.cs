@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace lab10New
 {
@@ -13,99 +14,49 @@ namespace lab10New
     {
         static async Task Main(string[] args)
         {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
             CreateDb();
             ChekerCondition();
         }
 
-        static void CreateConditions()
-        {
-            using (DataBase db = new DataBase())
-            {
-                var tickers = db.Tickers.ToList();
-                int IdConditions = 1;
-                foreach (Ticker ticker in tickers)
-                {
-                    var prices = (from price in db.Prices.Include(p => p.Ticker)
-                                  where price.Ticker == ticker
-                                  select price).ToList();
-                    if (prices[0].Price1 < prices[1].Price1)
-                    {
-                        var priceConditions = new TodayCondition()
-                        {
-                            Id = IdConditions++,
-                            TickerId = ticker.Id,
-                            Ticker = ticker,
-                            State = "down"
-                        };
-
-                        db.TodayConditions.Add(priceConditions);
-                    }
-                    else if (prices[0].Price1 > prices[1].Price1)
-                    {
-                        var priceConditions = new TodayCondition()
-                        {
-                            Id = IdConditions++,
-                            TickerId = ticker.Id,
-                            Ticker = ticker,
-                            State = "up"
-                        };
-
-                        db.TodayConditions.Add(priceConditions);
-                    }
-                    else
-                    {
-                        var priceConditions = new TodayCondition()
-                        {
-                            Id = IdConditions++,
-                            TickerId = ticker.Id,
-                            Ticker = ticker,
-                            State = "not change"
-                        };
-
-                        db.TodayConditions.Add(priceConditions);
-                    }
-                }
-                db.SaveChanges();
-            }
-        }
         static void ChekerCondition()
         {
             Console.WriteLine("Ticker");
             string tickerName = Console.ReadLine();
-            while (tickerName != "exit")
+            while (tickerName != "stop")
             {
                 using (DataBase db = new DataBase())
                 {
-                    var users = (from price in db.Prices.Include(p => p.Ticker)
+                    var unit = (from price in db.Prices.Include(p => p.Ticker)
                                  where price.Ticker.Ticker1 == tickerName
                                  select price).ToList();
                     var condition = (from con in db.TodayConditions.Include(p => p.Ticker)
                                      where con.Ticker.Ticker1 == tickerName
                                      select con).ToList();
-                    foreach (var us in users)
-                        Console.WriteLine($"{us.Price1}");
+                    foreach (var elem in unit)
+                        Console.WriteLine($"{elem.Price1}");
 
-                    if (users[1].Price1 - users[0].Price1 > 0)
+                    if (unit[1].Price1 - unit[0].Price1 > 0)
                     {
                         Console.WriteLine($"The price has risen");
                     }
-                    if (users[1].Price1 - users[0].Price1 < 0)
+                    if (unit[1].Price1 - unit[0].Price1 < 0)
                     {
                         Console.WriteLine($"The price has decreased");
                     }
-                    if (users[1].Price1 - users[0].Price1 == 0)
+                    if (unit[1].Price1 - unit[0].Price1 == 0)
                     {
                         Console.WriteLine($"The price has not changed");
                     }
                 }
-                Console.WriteLine("\nTicker or exit");
+                Console.WriteLine("\nNew ticker or stop");
                 tickerName = Console.ReadLine();
             }
         }
 
         static async void CreateDb()
         {
-            string path = @"ticker.txt";
+            string path = "ticker.txt";
             int IdTicker = 1;
             int IdPrice = 1;
             using (DataBase db = new DataBase())
@@ -122,18 +73,13 @@ namespace lab10New
                             break;
                         }
                         var client = new HttpClient();
-                        var dateNow = DateTimeOffset.Now.ToUnixTimeSeconds();
-                        var lastDay = dateNow - 2 * 86400;
+                        var nowTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+                        var yesterdayTime = nowTime - 4 * 86400;
                         try
                         {
-                            var content = await client.GetStringAsync($"https://query1.finance.yahoo.com/v7/finance/download/{line}?period1={lastDay}&period2={dateNow}&interval=1d&events=history&includeAdjustedClose=true");
+                            var content = await client.GetStringAsync($"https://query1.finance.yahoo.com/v7/finance/download/{line}?period1={yesterdayTime}&period2={nowTime}&interval=1d&events=history&includeAdjustedClose=true");
                             string[] lines = content.Split('\n');
-                            List<double> listAvNum = new List<double>();
-                            double summa = 0;
-                            for (int i = 1; i < lines.Length; ++i)
-                            {
-                                listAvNum.Add(GetAverageNum(lines[i]));
-                            }
+
                             Console.WriteLine(line);
                             var newTicker = new Ticker()
                             {
@@ -159,7 +105,7 @@ namespace lab10New
                                 Date = DateTime.Now.AddDays(-1)
                             };
                             ++IdPrice;
-                            Console.WriteLine($"Correct for {line}");
+                            Console.WriteLine($"Check {line}");
                             db.Prices.Add(priceForTicker1);
                             db.Prices.Add(priceForTicker2);
                             db.Tickers.Add(newTicker);
@@ -174,132 +120,15 @@ namespace lab10New
                 }
             }
         }
-
-        static void Reader()
-        {
-            using (DataBase db = new DataBase())
-            {
-                // получаем объект
-                var tickers = db.Tickers.ToList();
-                foreach (Ticker ticker in tickers)
-                {
-                    Console.WriteLine($"{ticker.Id}.{ticker.Ticker1}");
-                }
-            }
-        }
-
         static float GetAverageNum(string data)
         {
-            double High = 0;
-            double Low = 0;
-            int countOfDel = 0;
-            string temp = "";
-            for (int i = 0; i < data.Length; ++i)
-            {
-                if (data[i] == ',')
-                {
-                    ++countOfDel;
-                    if (countOfDel == 3)
-                    {
-                        if (temp == "null")
-                        {
-                            High = 0;
-                        }
-                        else
-                        {
-                            temp = temp.Replace('.', ',');
-                            High = Convert.ToDouble(temp);
-                        }
-                    }
-                    if (countOfDel == 4)
-                    {
-                        if (temp == "null")
-                        {
-                            Low = 0;
-                        }
-                        else
-                        {
-                            temp = temp.Replace('.', ',');
-                            Low = Convert.ToDouble(temp);
-                        }
-                    }
-                    temp = "";
-                }
-                else
-                {
-                    temp += data[i];
-                }
-            }
-            return (float)((High + Low) / 2);
-        }
-        static int DeleteProducts(string name)
-        {
-            using (var db = new DataBase())
-            {
-                IEnumerable<Ticker> products = db.Tickers.Where(p => p.Ticker1.StartsWith(name));
-
-                db.Tickers.RemoveRange(products);
-                return db.SaveChanges();
-            }
-        }
-        static int DeletePrice(string name)
-        {
-            using (var db = new DataBase())
-            {
-                IEnumerable<Price> products = db.Prices.Where(p => p.Ticker.Ticker1.StartsWith(name));
-
-                db.Prices.RemoveRange(products);
-                return db.SaveChanges();
-            }
-        }
-
-        static bool AddPrice(DataBase db, int tickerID, string ticker, float price, DateTime dateTime)
-        {
-            var newTicker = new Ticker()
-            {
-                Id = tickerID,
-                Ticker1 = ticker
-            };
-
-            var priceForTicker = new Price()
-            {
-                Id = tickerID,
-                Ticker = newTicker,
-                TickerId = newTicker.Id,
-                Price1 = price,
-                Date = dateTime
-            };
-
-            db.Prices.Add(priceForTicker);
-            int affected = db.SaveChanges();
-            return (affected == 1);
-        }
-        static bool AddTicker(DataBase db, int tickerID, string ticker)
-        {
-            var newTicker = new Ticker()
-            {
-                Id = tickerID,
-                Ticker1 = ticker
-            };
-
-            db.Tickers.Add(newTicker);
-            int affected = db.SaveChanges();
-            return (affected == 1);
-        }
-        static void DataLoadingSchemasLazy()
-        {
-            using (var db = new DataBase())
-            {
-                var loggerFactory = db.GetService<ILoggerFactory>();
-                loggerFactory.AddProvider(new ConsoleLoggerProvider());
-
-                IQueryable<Price> prices = db.Prices;
-
-                foreach (var c in prices)
-                {
-                    Console.WriteLine($"{c.Ticker} has {c.Price1}$");
-                }
-            }
+            double HighPrice = 0;
+            double LowPrice = 0;
+            string[] arr = new string[20];
+            arr = data.Split(',');
+            HighPrice = double.Parse(arr[3]);
+            LowPrice = double.Parse(arr[4]);
+            return (float)((HighPrice + LowPrice) / 2);
         }
     }
 }
